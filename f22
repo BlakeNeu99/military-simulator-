@@ -1,0 +1,89 @@
+#include "F22_Pawn.h"
+#include "Components/StaticMeshComponent.h"
+
+AF22_Pawn::AF22_Pawn()
+{
+    PrimaryActorTick.bCanEverTick = true;
+
+    // Initialize the mesh and enable physics simulation
+    JetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("JetMesh"));
+    RootComponent = JetMesh;
+    JetMesh->SetSimulatePhysics(true);
+    
+    // Damping prevents the jet from spinning endlessly in a vacuum
+    JetMesh->SetLinearDamping(0.1f);
+    JetMesh->SetAngularDamping(2.5f); 
+
+    CurrentThrottle = 0.f;
+}
+
+void AF22_Pawn::BeginPlay()
+{
+    Super::BeginPlay();
+}
+
+void AF22_Pawn::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+    CalculateFlightPhysics(DeltaTime);
+}
+
+void AF22_Pawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+    // Map these exact names to your Project Settings -> Input mapping
+    PlayerInputComponent->BindAxis("Throttle", this, &AF22_Pawn::ThrottleInput);
+    PlayerInputComponent->BindAxis("Pitch", this, &AF22_Pawn::PitchInput);
+    PlayerInputComponent->BindAxis("Roll", this, &AF22_Pawn::RollInput);
+    PlayerInputComponent->BindAxis("Yaw", this, &AF22_Pawn::YawInput);
+}
+
+void AF22_Pawn::CalculateFlightPhysics(float DeltaTime)
+{
+    FVector ForwardVector = JetMesh->GetForwardVector();
+    FVector UpVector = JetMesh->GetUpVector();
+    FVector Velocity = JetMesh->GetComponentVelocity();
+    
+    // How fast are we moving in the direction the nose is pointing?
+    float ForwardSpeed = FVector::DotProduct(Velocity, ForwardVector);
+    float SpeedSquared = ForwardSpeed * ForwardSpeed;
+
+    // 1. THRUST: Push the jet forward based on the throttle
+    FVector ThrustForce = ForwardVector * (CurrentThrottle * MaxThrust);
+    JetMesh->AddForce(ThrustForce);
+
+    // 2. LIFT: Pull the jet up. Lift increases exponentially with speed
+    // If we are moving forward, apply upward force to counteract gravity
+    if (ForwardSpeed > 100.0f) 
+    {
+        FVector LiftForce = UpVector * (SpeedSquared * LiftCoefficient);
+        JetMesh->AddForce(LiftForce);
+    }
+
+    // 3. DRAG: Air resistance. Pushes strictly opposite to our current velocity
+    FVector DragForce = -Velocity * Velocity.Size() * DragCoefficient;
+    JetMesh->AddForce(DragForce);
+
+    // 4. CONTROL SURFACES: Pitch, Roll, and Yaw torques for steering
+    // We multiply by SpeedSquared/some factor in advanced models so you can't turn without airflow, 
+    // but for basic F-22 thrust-vectoring, raw torque works well at most speeds.
+    FVector PitchForce = JetMesh->GetRightVector() * CurrentPitch * PitchTorque;
+    FVector RollForce = ForwardVector * CurrentRoll * RollTorque;
+    FVector YawForce = UpVector * CurrentYaw * YawTorque;
+
+    JetMesh->AddTorqueInDegrees(PitchForce);
+    JetMesh->AddTorqueInDegrees(RollForce);
+    JetMesh->AddTorqueInDegrees(YawForce);
+}
+
+// Input Handlers
+void AF22_Pawn::ThrottleInput(float Value)
+{
+    // Throttle slowly increases/decreases and locks between 0% and 100%
+    CurrentThrottle = FMath::Clamp(CurrentThrottle + (Value * 0.5f * GetWorld()->GetDeltaSeconds()), 0.0f, 1.0f);
+}
+
+void AF22_Pawn::PitchInput(float Value) { CurrentPitch = Value; }
+void AF22_Pawn::RollInput(float Value) { CurrentRoll = Value; }
+void AF22_Pawn::YawInput(float Value) { CurrentYaw = Value; }
