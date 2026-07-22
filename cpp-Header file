@@ -1,0 +1,54 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Pawn.h"
+#include "F22_Pawn.generated.h"
+
+UCLASS()
+class AF22_Pawn : public APawn
+{
+    GENERATED_BODY()
+
+public:
+    AF22_Pawn();
+    virtual void Tick(float DeltaTime) override;
+    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+protected:
+    virtual void BeginPlay() override;
+
+    // The physical 3D model of the F-22
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flight Physics")
+    class UStaticMeshComponent* JetMesh;
+
+    // Aerodynamic Multipliers
+    UPROPERTY(EditAnywhere, Category = "Flight Physics")
+    float MaxThrust = 2000000.f; // The F-22 has massive thrust-to-weight ratio
+    UPROPERTY(EditAnywhere, Category = "Flight Physics")
+    float LiftCoefficient = 0.03f;
+    UPROPERTY(EditAnywhere, Category = "Flight Physics")
+    float DragCoefficient = 0.005f;
+
+    // Control surfaces (Thrust vectoring & ailerons/elevators)
+    UPROPERTY(EditAnywhere, Category = "Flight Controls")
+    float PitchTorque = 4000000.f;
+    UPROPERTY(EditAnywhere, Category = "Flight Controls")
+    float RollTorque = 3000000.f;
+    UPROPERTY(EditAnywhere, Category = "Flight Controls")
+    float YawTorque = 1500000.f;
+
+    // Current state variables
+    float CurrentThrottle;
+    float CurrentPitch;
+    float CurrentRoll;
+    float CurrentYaw;
+
+    // The core math function
+    void CalculateFlightPhysics(float DeltaTime);
+
+    // Input bindings
+    void ThrottleInput(float Value);
+    void PitchInput(float Value);
+    void RollInput(float Value);
+    void YawInput(float Value);
+};
